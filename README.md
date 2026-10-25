@@ -65,8 +65,8 @@
 ```
 .
 ├── index.html                        # 完整工具（單一檔案，內嵌 CSS/JS，無外部相依）
-├── docs/
-│   └── asthma-research-notes.md      # 資料底稿：全部條目附出處與原文對照
+│                                     #   決策邏輯在 /*ENGINE-START*/…/*ENGINE-END*/（AE 物件，不碰 DOM）
+├── tests.cjs                         # 決策引擎測試：node tests.cjs
 ├── .nojekyll                         # 停用 GitHub Pages 的 Jekyll 處理
 └── README.md
 ```
@@ -86,7 +86,19 @@ open index.html          # macOS
 # 或 xdg-open index.html  # Linux
 ```
 
-沒有建置步驟、沒有相依套件、不需要伺服器。所有邏輯在瀏覽器端執行，**不會傳送任何輸入的病人資料**。
+沒有建置步驟、沒有相依套件、不需要伺服器。分頁可用網址直接開啟（例如 `#dose`、`#acute`、`#tx`）。
+
+**測試**：`node tests.cjs`（66 項，涵蓋 Table 1 診斷、Table 2A 控制分級、升降階、Figure 9 嚴重度與 PRAM 分級）。所有邏輯在瀏覽器端執行，**不會傳送任何輸入的病人資料**。
+
+---
+
+## v2.0 更新（2026-10-25 除錯）
+
+- **急性發作**：未勾任何徵象時不再預設「輕度」——輕度須符合**全部**輕度條件，否則以中度處理（Figure 9）；PRAM 改為輸入分數自動分級；年齡分成 ≥18 / 12–17 / 6–11 / ≤5（≤5 歲不在 Figure 9 範圍，改用完整報告學齡前劑量並標示需核對）；重度 ipratropium 限 3 次、嗜睡／意識混亂／安靜胸廓轉加護病房
+- **調整治療**：Track 1 的 Step 1 與 Step 2 是同一處方，不再出現「Step 2 降到 Step 1」或「Step 1 升到 Step 2」；Step 5 仍未控制不再顯示「升階」；未治療者不再被控制分級覆蓋 Table 3/4 起始階（改為提示不一致）；6–11 歲降階需 ≥3 個月（p.30）；ICS-formoterol 緩解劑者第 3 題（SABA）可選「不適用」；先問 Track/目前治療再問控制
+- **診斷**：成人 BDR 加入 **FVC**（FEV₁ 或 FVC ≥12% 且 ≥200 mL）、無肺量計時的 PEF 前後值（成人 ≥20%／兒童 ≥15%）、ICS 4 週反應／激發試驗／就診間變異勾選；兒童未填預測值改列「無法判讀」而非陰性；FEV₁/FVC 改為輔助（2026 Table 1 不以比值為標準）；症狀典型 + FeNO 升高 + 未檢查時依 Figure 1 提示經驗性 ICS；數值超出合理範圍（如 FEV₁ 誤填 mL）不納入判讀
+- **內容**：兒童 MART／AIR 24 小時上限 >8 吸（Table 7）、成人 >12 吸；Berotec（fenoterol）標示 GINA 不建議；停藥時間補 LAMA 36–48 小時與每日 1 次 ICS-LABA 36 小時（p.9）
+- **介面**：換情境或年齡時清除舊答案；手機版分頁列可橫向捲動、標頭縮小；分頁網址 hash
 
 ---
 
@@ -136,4 +148,4 @@ open index.html          # macOS
 
 ---
 
-*最後核對：2026-08-16 · 依據 GINA 2026 Summary Guide（2026 年 7 月版）*
+*最後核對：2026-10-25（v2.0）· 依據 GINA 2026 Summary Guide（2026 年 7 月版）*
