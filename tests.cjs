@@ -92,5 +92,74 @@ t('PRAM 9 → severe', ac([3,4,5], 9), ['sev',false]);
 t('PRAM 11 → life', ac([], 11), ['life',false]);
 t('PRAM bands', [0,3,4,7,8,10,11,12].map(AE.pramBand), ['mild','mild','mod','mod','sev','sev','life','life']);
 
+
+/* ---- v2.1 fixes ---- */
+t('BDR exactly 12% despite float (2.5→2.8)', AE.dxEval({age:'ad18', sx:typ, obj:{pre:2.5, post:2.8}}).objPos, true);
+t('BDR child exactly 12% predicted', AE.dxEval({age:'a611', sx:typ, obj:{pre:1.5, post:1.74, pred:2.0}}).objPos, true);
+t('FVC-only BDR counts in adults', AE.dxEval({age:'ad18', sx:typ, obj:{fvcPre:3.5, fvcPost:4.0}}).key, 'confirmed');
+t('FVC-only BDR under 200 mL', AE.dxEval({age:'ad18', sx:typ, obj:{fvcPre:1.0, fvcPost:1.15}}).objPos, false);
+t('FeNO 40 adolescent not high (>50)', AE.dxEval({age:'a1217', sx:typ, obj:{feno:40}}).key, 'needTests');
+t('FeNO 60 adolescent high', AE.dxEval({age:'a1217', sx:typ, obj:{feno:60}}).key, 'sxT2');
+t('FeNO 40 child 6–11 high', AE.dxEval({age:'a611', sx:typ, obj:{feno:40}}).key, 'sxT2');
+t('adolescent keeps child BDR rule', AE.dxEval({age:'a1217', sx:typ, obj:{pre:1.6, post:1.85, pred:2.0}}).objPos, true);
+t('adolescent PEF variability cut 13', AE.dxEval({age:'a1217', sx:typ, obj:{pef:12}}).objPos, false);
+t('n/a refused when not allowed', AE.ctrlComplete([0,0,'na',0], false), false);
+t('n/a accepted when allowed', AE.ctrlComplete([0,0,'na',0], true), true);
+t('poor adherence: fix, not step up', (d=>[d.rec,d.act,d.next])(AE.txDecide({...base, track:'t2', cur:4, ctrl:[1,1,1,0], risk:[1]})), [4,'fix',5]);
+t('poor adherence at Step 5: fix, not top', (d=>[d.rec,d.act,d.next])(AE.txDecide({...base, cur:5, ctrl:[1,1,'na',1], risk:[1]})), [5,'fix',null]);
+t('other risk factor still steps up', tx({track:'t2', cur:3, ctrl:[1,1,1,0], risk:[7]}), [4,'up']);
+t('child AIR ICS-formoterol → MART Step 3', (d=>[d.rec,d.notes.includes('aifMart')])(AE.txDecide({...base, age:'a611', track:null, cur:1, c1:'icsform', ctrl:[1,0,'na',0]})), [3,true]);
+t('child AIR ICS+SABA → Step 2', tx({age:'a611', track:null, cur:1, c1:'other', ctrl:[1,0,0,0]}), [2,'consider']);
+t('pregnant well 3 mo stays', (d=>[d.rec,d.act,d.notes])(AE.txDecide({...base, cur:4, ctrl:[0,0,'na',0], ctrlDur:'ge3', preg:true})), [4,'stay',['pregHold','preg']]);
+t('pregnant uncontrolled may step up', tx({cur:3, ctrl:[1,1,'na',1], preg:true}), [4,'up']);
+t('preg ignored outside ≥12', tx({age:'a611', track:null, cur:3, ctrl:[0,0,0,0], ctrlDur:'ge3', preg:true}), [2,'down']);
+t('lowest step <3 mo: no step-down promise', AE.txDecide({...base, cur:2, ctrl:[0,0,'na',0]}).notes, ['lowest']);
+t('lowest step with risk factor', AE.txDecide({...base, cur:2, ctrl:[0,0,'na',0], risk:[7]}).notes, ['lowestRisk']);
+t('PRAM 2 alone → mild', ac([], 2), ['mild',false]);
+t('PRAM 2 with moderate sign → moderate', ac([2], 2), ['mod',false]);
+t('no PRAM, partial mild still moderate', ac([3]), ['mod',true]);
+
+/* ---- teaching tabs ---- */
+const tsrc = html.slice(html.indexOf('/*TEACH-START*/'), html.indexOf('/*TEACH-END*/'));
+const tctx = { module: { exports: {} } };
+vm.runInNewContext(tsrc, tctx);
+const { CASES, QUIZ, MAP } = tctx.module.exports;
+const signsSrc = html.slice(html.indexOf('const ACUTE_SIGNS='), html.indexOf('const SIGN_GROUPS='));
+const SIGNS = vm.runInNewContext(signsSrc.replace('const ACUTE_SIGNS=', '(') .trim().replace(/;$/, '') + ')');
+t('6 cases', CASES.length, 6);
+t('20 questions', QUIZ.length, 20);
+t('10 basic', QUIZ.filter(q => q.level === 'basic').length, 10);
+t('10 advanced', QUIZ.filter(q => q.level === 'adv').length, 10);
+t('answers evenly spread', [0,1,2,3].map(a => QUIZ.filter(q => q.ans === a).length), [5,5,5,5]);
+t('unique quiz ids', new Set(QUIZ.map(q => q.id)).size, 20);
+QUIZ.forEach(q => {
+  t(q.id + ' has 4 distinct options', new Set(q.opts).size, 4);
+  t(q.id + ' has why + source', !!(q.why && q.src && q.stem && q.topic), true);
+});
+t('correct option not longest in most', QUIZ.filter(q => q.opts[q.ans].length === Math.max(...q.opts.map(o => o.length))).length <= 5, true);
+t('map has both sides', [MAP.dx.length >= 5, MAP.tx.length >= 5], [true, true]);
+CASES.forEach(c => {
+  t(c.id + ' has content', !!(c.title && c.story && c.ask && c.points.length && c.trap && c.src), true);
+  t(c.id + ' load/expect align', c.load.length, c.expect.length);
+  c.load.forEach((l, k) => {
+    const w = l.wiz, e = c.expect[k];
+    if (w.scenario === 'dx') t(`${c.id}.${k} dx`, AE.dxEval({ age: w.age, sx: w.sx, obj: w.obj, other: w.dxOther || [] }).key, e.key);
+    else if (w.scenario === 'ac') t(`${c.id}.${k} acute`, AE.acuteClassify(SIGNS, w.acute, w.pram == null ? null : w.pram).key, e.key);
+    else {
+      const d = AE.txDecide({ age: w.age, cur: w.cur, track: w.track, init: w.init, ctrlDur: w.ctrlDur, ctrl: w.ctrl, risk: w.risk, c1: w.c1, preg: w.preg });
+      t(`${c.id}.${k} tx`, [d.rec, d.act], [e.rec, e.act]);
+      if (e.next) t(`${c.id}.${k} next`, d.next, e.next);
+    }
+  });
+});
+/* quiz answers that the engine can check */
+const qOpt = id => QUIZ.find(q => q.id === id);
+t('q1 engine: 2.00→2.22 negative', AE.dxEval({ age: 'ad18', sx: typ, obj: { pre: 2.0, post: 2.22 } }).objPos, false);
+t('q1 key says negative', qOpt('q1').ans, 1);
+t('q2 engine: well controlled', AE.ctrlLevel([0,0,0,0]).level, 'well');
+t('q8 engine: RR >30 → severe', AE.acuteClassify(SIGNS, [2, 8, 10, 13, 14], null).key, 'sev');
+t('q11 engine: child 10% predicted negative', AE.dxEval({ age: 'a611', sx: typ, obj: { pre: 1.5, post: 1.7, pred: 2.0 } }).objPos, false);
+t('q15 engine: pregnant no step-down', AE.txDecide({ ...base, cur: 3, ctrl: [0,0,'na',0], ctrlDur: 'ge3', preg: true }).act, 'stay');
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
